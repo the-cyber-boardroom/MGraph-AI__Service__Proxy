@@ -4,6 +4,7 @@ from unittest                                                               impo
 from osbot_utils.type_safe.primitives.safe_str.identifiers.Random_Guid      import Random_Guid
 from osbot_utils.type_safe.primitives.safe_str.web.Safe_Str__IP_Address     import Safe_Str__IP_Address
 from osbot_utils.type_safe.primitives.safe_uint.Safe_UInt                   import Safe_UInt
+from osbot_utils.utils.Env                                                  import in_github_action
 from mgraph_ai_service_proxy.schemas.Schema__Proxy__Request                 import Schema__Proxy__Request
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Header_Name       import Safe_Str__Http__Header_Name
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Host              import Safe_Str__Http__Host
@@ -106,8 +107,13 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
         assert headers_received.get('User-Agent')      == 'TestClient/1.0'
 
         # Verify filtered headers were removed
+        if in_github_action():
+            accepted_encoding = 'gzip, deflate, zstd'
+        else:
+            accepted_encoding = 'gzip, deflate'
+
         assert headers_received == { 'Accept'            : '*/*'                            ,
-                                     'Accept-Encoding'   : 'gzip, deflate'                  ,
+                                     'Accept-Encoding'   : accepted_encoding                ,
                                      'Authorization'     : 'Bearer token123'                ,
                                      'Connection'        : 'keep-alive'                     ,       # this was added by the requests (since the one we set was filtered by filter_request_headers)
                                      'Host'              : f'localhost:{self.upstream_port}',
@@ -115,7 +121,7 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
                                      'X-Custom-Header'   : 'custom-value'                   ,
                                      'X-Forwarded-For'   : '172.16.0.1'                     ,
                                      'X-Forwarded-Host'  : f'localhost:{self.upstream_port}',
-                                     'X-Forwarded-Proto' : 'http'                       }
+                                     'X-Forwarded-Proto' : 'http'                           }
 
 
     def test_proxy_put_request(self):                                                 # Test PUT request proxying
