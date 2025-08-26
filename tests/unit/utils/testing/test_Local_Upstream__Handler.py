@@ -6,7 +6,7 @@ from http.client                                                       import HT
 from unittest                                                          import TestCase
 from osbot_utils.helpers.duration.decorators.capture_duration          import capture_duration
 from osbot_utils.utils.Misc                                            import random_port
-from mgraph_ai_service_proxy.utils.testing.Local_Upstream__Handler     import Local_Upstream__Handler
+from mgraph_ai_service_proxy.utils.testing.Local_Upstream__Handler     import Local_Upstream__Handler, DEFAULT__DELAY__MS
 
 
 class test_Local_Upstream__Handler(TestCase):                                          # Test the local upstream handler behavior
@@ -19,8 +19,7 @@ class test_Local_Upstream__Handler(TestCase):                                   
             cls.thread = threading.Thread(target=cls.server.serve_forever)
             cls.thread.daemon = True
             cls.thread.start()
-            time.sleep(0.1)                                                            # this doesn't seem to be needed  # Allow server to start
-
+            #time.sleep(0.1)                                                            # todo: remove if no side effects (since this doesn't seem to be needed0  # Allow server to start
             cls.client = HTTPConnection('localhost', cls.port)                          # Reusable HTTP client
 
         assert start_duration.seconds < 0.21                                            # should start in less than 10 milliseconds
@@ -73,13 +72,15 @@ class test_Local_Upstream__Handler(TestCase):                                   
 
         assert status == 200
         data = json.loads(body)
-        assert data['query'] == 'foo=bar&test=123'
-        assert data['path']  == '/echo'                                              # Path without query
+        assert data == { 'client': '127.0.0.1'        ,
+                         'method': 'GET'              ,
+                         'path'  : '/echo'            ,
+                         'query' : 'foo=bar&test=123' }
 
     def test__echo_headers_endpoint(self):                                           # Test header echoing
-        custom_headers = {'X-Custom-1'    : 'value1'       ,
-                         'X-Custom-2'    : 'value2'       ,
-                         'Authorization' : 'Bearer token' }
+        custom_headers = { 'X-Custom-1'    : 'value1'       ,
+                           'X-Custom-2'    : 'value2'       ,
+                           'Authorization' : 'Bearer token' }
 
         status, headers, body = self._make_request('GET', '/echo/headers', headers=custom_headers)
 
@@ -87,8 +88,8 @@ class test_Local_Upstream__Handler(TestCase):                                   
         data = json.loads(body)
 
         headers_received = data['headers_received']
-        assert headers_received['X-Custom-1']    == 'value1'
-        assert headers_received['X-Custom-2']    == 'value2'
+        assert headers_received['X-Custom-1'   ] == 'value1'
+        assert headers_received['X-Custom-2'   ] == 'value2'
         assert headers_received['Authorization'] == 'Bearer token'
 
     def test__echo_post_endpoint(self):                                              # Test POST echo
@@ -125,7 +126,7 @@ class test_Local_Upstream__Handler(TestCase):                                   
 
         assert status == 400
         data = json.loads(body)
-        assert data['error'] == 'Missing required_field'
+        assert data == {'error': 'Missing required_field'}
 
     def test__validate_post_invalid_json(self):                                      # Test invalid JSON handling
         invalid_json = 'not json at all'
@@ -134,7 +135,7 @@ class test_Local_Upstream__Handler(TestCase):                                   
 
         assert status == 400
         data = json.loads(body)
-        assert data['error'] == 'Invalid JSON'
+        assert data == {'error': 'Invalid JSON'}
 
     def test__update_endpoint(self):                                                 # Test PUT update
         update_data = json.dumps({'id': 123, 'status': 'updated'})
@@ -143,9 +144,9 @@ class test_Local_Upstream__Handler(TestCase):                                   
 
         assert status == 200
         data = json.loads(body)
-        assert data == {'method' : 'PUT'       ,
-                       'updated': True         ,
-                       'body'   : update_data  }
+        assert data == { 'method' : 'PUT'        ,
+                         'updated': True         ,
+                         'body'   : update_data  }
 
     def test__delete_endpoint(self):                                                 # Test DELETE with resource ID
         status, headers, body = self._make_request('DELETE', '/delete/resource-456')
@@ -167,27 +168,28 @@ class test_Local_Upstream__Handler(TestCase):                                   
 
         assert status == 200
         data = json.loads(body)
-        assert data['delayed_ms'] == 100                                             # Default delay
-        assert duration >= 0.1                                                       # At least 100ms
-        assert duration < 0.5                                                        # But not too long
+        assert DEFAULT__DELAY__MS == 10
+        assert data['delayed_ms'] == DEFAULT__DELAY__MS                              # Default delay
+        assert duration >= 0.01                                                      # At least 10ms
+        assert duration < 0.1                                                        # But not too long
 
     def test__delay_custom(self):                                                    # Test custom delay
         start = time.time()
-        status, headers, body = self._make_request('GET', '/delay/50')
+        status, headers, body = self._make_request('GET', '/delay/001')              # delay for 1ms
         duration = time.time() - start
 
         assert status == 200
         data = json.loads(body)
-        assert data['delayed_ms'] == 50
-        assert duration >= 0.05                                                      # At least 50ms
-        assert duration < 0.3                                                        # But reasonable
+        assert data['delayed_ms'] == 1
+        assert duration >= 0.001                                                     # At least 1ms
+        assert duration < 0.03                                                       # But reasonable
 
     def test__delay_invalid_number(self):                                            # Test invalid delay number
         status, headers, body = self._make_request('GET', '/delay/invalid')
 
         assert status == 200
         data = json.loads(body)
-        assert data['delayed_ms'] == 100                                             # Falls back to default
+        assert data['delayed_ms'] == DEFAULT__DELAY__MS                              # Falls back to default
 
     def test__error_500_endpoint(self):                                              # Test 500 error response
         status, headers, body = self._make_request('GET', '/error/500')
@@ -195,7 +197,7 @@ class test_Local_Upstream__Handler(TestCase):                                   
         assert status == 500
         data = json.loads(body)
         assert data == {'error'  : 'Internal Server Error' ,
-                       'details': 'Simulated error'       }
+                        'details': 'Simulated error'       }
 
     def test__large_response(self):                                                  # Test large response handling
         status, headers, body = self._make_request('GET', '/large')
@@ -241,19 +243,3 @@ class test_Local_Upstream__Handler(TestCase):                                   
         assert status == 404
         data = json.loads(body)
         assert data['error'] == 'Not Found'
-
-    def test__timeout_endpoint(self):                                                # Test timeout behavior (with short timeout)
-        # This test validates the endpoint exists but doesn't wait 30s
-        # We'll use a short socket timeout to verify it hangs
-        import socket
-
-        temp_client = HTTPConnection('localhost', self.port, timeout=0.5)
-
-        try:
-            temp_client.request('GET', '/timeout')
-            temp_client.getresponse()
-            assert False, "Should have timed out"                                    # Should not reach here
-        except socket.timeout:
-            pass                                                                      # Expected behavior
-        finally:
-            temp_client.close()

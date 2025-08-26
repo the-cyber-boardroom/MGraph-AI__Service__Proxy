@@ -1,60 +1,79 @@
 import json
 import time
-from http.server import BaseHTTPRequestHandler
+from http.server                                                        import BaseHTTPRequestHandler
+from urllib.parse                                                       import urlparse, parse_qs
+from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Path          import Safe_Str__Http__Path
+from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Query_String  import Safe_Str__Http__Query_String
+
+DEFAULT__DELAY__MS = 10
 
 class Local_Upstream__Handler(BaseHTTPRequestHandler):                                      # Mock upstream server for proxy testing
 
     def log_message(self, format, *args):                                               # Suppress default logging
         pass
 
+    def _parse_path_and_query(self):                                                   # Parse path and query string using urllib
+        parsed = urlparse(self.path)
+        path = Safe_Str__Http__Path(parsed.path)                                      # Use Safe_Str for path
+        query = Safe_Str__Http__Query_String(parsed.query) if parsed.query else Safe_Str__Http__Query_String('')  # Use Safe_Str for query
+        return path, query
+
     def do_GET(self):                                                                   # Handle GET requests
-        if self.path == '/echo':
-            self._handle_echo()
-        elif self.path == '/echo/headers':
+        path, query = self._parse_path_and_query()
+
+        if path == '/echo':
+            self._handle_echo(path, query)
+        elif path == '/echo/headers':
             self._handle_echo_headers()
-        elif self.path.startswith('/delay'):
-            self._handle_delay()
-        elif self.path == '/timeout':
+        elif str(path).startswith('/delay'):
+            self._handle_delay(path)
+        elif path == '/timeout':
             self._handle_timeout()
-        elif self.path == '/error/500':
+        elif path == '/error/500':
             self._handle_error_500()
-        elif self.path == '/large':
+        elif path == '/large':
             self._handle_large_response()
-        elif self.path == '/redirect':
+        elif path == '/redirect':
             self._handle_redirect()
         else:
             self._handle_not_found()
 
     def do_POST(self):                                                                  # Handle POST requests
-        if self.path == '/echo/post':
+        path, query = self._parse_path_and_query()
+
+        if path == '/echo/post':
             self._handle_echo_post()
-        elif self.path == '/validate':
+        elif path == '/validate':
             self._handle_validate_post()
         else:
             self._handle_not_found()
 
     def do_PUT(self):                                                                   # Handle PUT requests
-        if self.path == '/update':
+        path, query = self._parse_path_and_query()
+
+        if path == '/update':
             self._handle_update()
         else:
             self._handle_not_found()
 
     def do_DELETE(self):                                                                # Handle DELETE requests
-        if self.path.startswith('/delete'):
+        path, query = self._parse_path_and_query()
+
+        if str(path).startswith('/delete'):
             self._handle_delete()
         else:
             self._handle_not_found()
 
-    def _handle_echo(self):                                                            # Echo request details back
+    def _handle_echo(self, path, query):                                              # Echo request details back with Safe_Str types
         self.send_response(200)
         self.send_header('Content-Type' , 'application/json')
         self.send_header('X-Test-Header', 'test-value'      )
-        self.send_header('X-Echo-Path'  , self.path         )
+        self.send_header('X-Echo-Path'  , str(path)         )                        # Convert Safe_Str to str for header
         self.end_headers()
 
         response = {'method'  : 'GET'                      ,
-                    'path'    : self.path                   ,
-                    'query'   : self._get_query_string()    ,
+                    'path'    : str(path)                   ,                        # Safe_Str__Http__Path as string
+                    'query'   : str(query)                  ,                        # Safe_Str__Http__Query_String as string
                     'client'  : self.client_address[0]      }
 
         self.wfile.write(json.dumps(response).encode())
@@ -128,11 +147,11 @@ class Local_Upstream__Handler(BaseHTTPRequestHandler):                          
         self.send_header('X-Deleted-Resource', resource_id or 'unknown')
         self.end_headers()
 
-    def _handle_delay(self):                                                           # Delay response for testing
-        delay_ms = 100                                                                 # Default delay
-        if '/' in self.path:
+    def _handle_delay(self, path):                                                     # Delay response for testing
+        delay_ms = DEFAULT__DELAY__MS                                                  # Default delay
+        if '/' in str(path):
             try:
-                delay_ms = int(self.path.split('/')[-1])
+                delay_ms = int(str(path).split('/')[-1])
             except ValueError:
                 pass
 
@@ -176,8 +195,3 @@ class Local_Upstream__Handler(BaseHTTPRequestHandler):                          
 
         response = {'error': 'Not Found', 'path': self.path}
         self.wfile.write(json.dumps(response).encode())
-
-    def _get_query_string(self):                                                       # Extract query string from path
-        if '?' in self.path:
-            return self.path.split('?', 1)[1]
-        return ''
