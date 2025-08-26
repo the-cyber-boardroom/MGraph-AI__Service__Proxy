@@ -5,6 +5,8 @@ from osbot_utils.type_safe.primitives.safe_str.Safe_Str import Safe_Str
 TYPE_SAFE_STR__HTTP__PATH__REGEX      = re.compile(r'[^\w\-\._~:/?#\[\]@!$&\'()*+,;=%]')
 TYPE_SAFE_STR__HTTP__PATH__MAX_LENGTH = 2048  # Standard URL max length
 
+# todo: refactor to OSBot-Utils
+
 class Safe_Str__Http__Path(Safe_Str):
     regex           = TYPE_SAFE_STR__HTTP__PATH__REGEX
     max_length      = TYPE_SAFE_STR__HTTP__PATH__MAX_LENGTH
