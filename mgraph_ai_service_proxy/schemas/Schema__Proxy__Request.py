@@ -2,7 +2,7 @@ from typing                                                                    i
 from osbot_utils.type_safe.Type_Safe                                           import Type_Safe
 from osbot_utils.type_safe.primitives.safe_str.Safe_Str                        import Safe_Str
 from osbot_utils.type_safe.primitives.safe_str.filesystem.Safe_Str__File__Path import Safe_Str__File__Path
-from osbot_utils.type_safe.primitives.safe_str.identifiers.Safe_Id import Safe_Id
+from osbot_utils.type_safe.primitives.safe_str.identifiers.Safe_Id             import Safe_Id
 
 
 class Schema__Proxy__Request(Type_Safe):                                      # Incoming proxy request data
