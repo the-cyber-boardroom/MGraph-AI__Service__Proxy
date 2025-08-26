@@ -19,15 +19,25 @@ class Service__Proxy__Filter(Type_Safe):                                      # 
         'content-length'
     }
 
-    def filter_request_headers(self, headers: Dict[str, str]          ) -> Dict[str, str]:  # Filter request headers
-        return {
-            key: value for key, value in headers.items()
-            if key.lower() not in self.REQUEST_SKIP_HEADERS
-        }
+    def filter_request_headers(self, headers: Dict[str, str]
+                                ) -> Dict[str, str]:                        # Filter request headers
+        filtered_headers: Dict[str, str] = {}                                   # Build a new dictionary with only the headers we want to keep
 
-    def filter_response_headers(self, headers: Dict[str, str]         ) -> Dict[str, str]:  # Filter response headers
-        return {
-            key: value for key, value in headers.items()
-            if key.lower() not in self.RESPONSE_SKIP_HEADERS
-        }
+        for key, value in headers.items():
+            lowercase_key = key.lower()  # normalize for comparison
+            if lowercase_key not in self.REQUEST_SKIP_HEADERS:
+                filtered_headers[key] = value  # preserve original casing
+
+        return filtered_headers
+
+    def filter_response_headers(self, headers: Dict[str, str]
+                                 ) -> Dict[str, str]:                   # Filter response headers
+        filtered_headers: Dict[str, str] = {}
+
+        for key, value in headers.items():                              # Normalize the header key to lowercase for comparison
+            lowercase_key = key.lower()
+            if lowercase_key not in self.RESPONSE_SKIP_HEADERS:         # Only keep the header if it's not in the skip list
+                filtered_headers[key] = value
+
+        return filtered_headers
 

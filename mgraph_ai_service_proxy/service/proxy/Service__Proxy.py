@@ -58,36 +58,30 @@ class Service__Proxy(Type_Safe):                                                
         filtered_headers = self.filter_service.filter_request_headers(request.headers)
         
         # Add forwarding headers
-        filtered_headers.update({
-            'X-Forwarded-For'   : request.client_ip              ,
-            'X-Forwarded-Proto' : 'https' if request.use_https else 'http',
-            'X-Forwarded-Host'  : request.host or ''
-        })
+        filtered_headers.update({ 'X-Forwarded-For'   : request.client_ip                       ,
+                                  'X-Forwarded-Proto' : 'https' if request.use_https else 'http',
+                                  'X-Forwarded-Host'  : request.host or ''                      })
         
         session = self.get_session()
         
         try:
-            response = session.request(
-                method          = request.method                 ,
-                url             = str(target_url)                ,
-                headers         = filtered_headers               ,
-                data            = request.body                   ,
-                allow_redirects = False                          ,
-                stream          = True                           ,
-                verify          = self.config.verify_ssl
-            )
+            response = session.request( method          = request.method         ,
+                                        url             = str(target_url)        ,
+                                        headers         = filtered_headers       ,
+                                        data            = request.body           ,
+                                        allow_redirects = False                  ,
+                                        stream          = True                   ,
+                                        verify          = self.config.verify_ssl )
             
             response_headers = self.filter_service.filter_response_headers(dict(response.headers))
             
             # Update stats
             self.stats_service.record_request(request, response.status_code)
             
-            return Schema__Proxy__Response(
-                status_code = response.status_code               ,
-                headers     = response_headers                  ,
-                content     = response.content                  ,
-                target_url  = target_url
-            )
+            return Schema__Proxy__Response( status_code = response.status_code ,
+                                            headers     = response_headers     ,
+                                            content     = response.content     ,
+                                            target_url  = target_url           )
             
         except requests.Timeout:
             self.stats_service.record_timeout(request)

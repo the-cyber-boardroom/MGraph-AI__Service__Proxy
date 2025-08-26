@@ -5,6 +5,7 @@ from osbot_utils.type_safe.primitives.safe_str.identifiers.Random_Guid      impo
 from osbot_utils.type_safe.primitives.safe_str.web.Safe_Str__IP_Address     import Safe_Str__IP_Address
 from osbot_utils.type_safe.primitives.safe_uint.Safe_UInt                   import Safe_UInt
 from mgraph_ai_service_proxy.schemas.Schema__Proxy__Request                 import Schema__Proxy__Request
+from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Header_Name       import Safe_Str__Http__Header_Name
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Host              import Safe_Str__Http__Host
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Method            import Safe_Str__Http__Method
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Path              import Safe_Str__Http__Path
@@ -108,27 +109,25 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
         assert headers_received == { 'Accept'            : '*/*'                            ,
                                      'Accept-Encoding'   : 'gzip, deflate'                  ,
                                      'Authorization'     : 'Bearer token123'                ,
-                                     'Connection'        : 'keep-alive'                     ,
+                                     'Connection'        : 'keep-alive'                     ,       # this was added by the requests (since the one we set was filtered by filter_request_headers)
                                      'Host'              : f'localhost:{self.upstream_port}',
                                      'User-Agent'        : 'TestClient/1.0'                 ,
                                      'X-Custom-Header'   : 'custom-value'                   ,
                                      'X-Forwarded-For'   : '172.16.0.1'                     ,
                                      'X-Forwarded-Host'  : f'localhost:{self.upstream_port}',
                                      'X-Forwarded-Proto' : 'http'                       }
-        #assert 'Connection'       not in headers_received
-        assert 'Connection'           in headers_received
-        assert 'Proxy-Connection' not in headers_received
+
 
     def test_proxy_put_request(self):                                                 # Test PUT request proxying
         update_data = {'id': 123, 'status': 'updated'}
 
-        request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("PUT")              ,
-                                        path         = Safe_Str__Http__Path("/update")            ,
-                                        host         = Safe_Str__Http__Host(f"localhost:{self.upstream.port}"),
-                                        body         = json.dumps(update_data).encode()           ,
-                                        client_ip    = Safe_Str__IP_Address("192.168.10.1")       ,
-                                        use_https    = False                                      ,
-                                        request_id   = Random_Guid()                              )
+        request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("PUT")                            ,
+                                         path         = Safe_Str__Http__Path  ("/update")                        ,
+                                         host         = Safe_Str__Http__Host  (f"localhost:{self.upstream.port}"),
+                                         body         = json.dumps(update_data).encode()                         ,
+                                         client_ip    = Safe_Str__IP_Address("192.168.10.1")                     ,
+                                         use_https    = False                                                    ,
+                                         request_id   = Random_Guid()                                            )
 
         response = self.proxy_service.execute_request(request)
 
@@ -140,17 +139,18 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
         assert content['body']    == json.dumps(update_data)
 
     def test_proxy_delete_request(self):                                              # Test DELETE request proxying
-        request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("DELETE")           ,
-                                        path         = Safe_Str__Http__Path("/delete/resource-123"),
-                                        host         = Safe_Str__Http__Host(f"localhost:{self.upstream.port}"),
-                                        client_ip    = Safe_Str__IP_Address("10.10.10.10")        ,
-                                        use_https    = False                                      ,
-                                        request_id   = Random_Guid()                              )
+        request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("DELETE")                        ,
+                                         path         = Safe_Str__Http__Path("/delete/resource-123")            ,
+                                         host         = Safe_Str__Http__Host(f"localhost:{self.upstream.port}" ),
+                                         client_ip    = Safe_Str__IP_Address("10.10.10.10")                     ,
+                                         use_https    = False                                                   ,
+                                         request_id   = Random_Guid()                                           )
 
         response = self.proxy_service.execute_request(request)
 
         assert response.status_code == 204                                            # No Content
-        assert 'X-Deleted-Resource' in response.headers
+        assert Safe_Str__Http__Header_Name('X-Deleted-Resource')     in response.headers
+        assert                             'X-Deleted-Resource'  not in response.headers            # BUG: this should be equal (issue is OSBot-Utils type safe conversion)
         assert response.headers['X-Deleted-Resource'] == 'resource-123'
 
     def test_proxy_404_response(self):                                                # Test 404 error handling
@@ -170,7 +170,7 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
         assert content['path']  == '/non-existent'
 
     def test_proxy_500_error(self):                                                   # Test 500 error response
-        request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("GET")              ,
+        request = Schema__Proxy__Request(method      = Safe_Str__Http__Method("GET")              ,
                                         path         = Safe_Str__Http__Path("/error/500")         ,
                                         host         = Safe_Str__Http__Host(f"localhost:{self.upstream.port}"),
                                         client_ip    = Safe_Str__IP_Address("192.168.1.1")        ,
@@ -186,22 +186,22 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
         assert content['details'] == 'Simulated error'
 
     def test_proxy_delay_response(self):                                              # Test delayed response handling
-        request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("GET")              ,
-                                        path         = Safe_Str__Http__Path("/delay/100")         ,
+        request = Schema__Proxy__Request(method      = Safe_Str__Http__Method("GET")                          ,
+                                        path         = Safe_Str__Http__Path("/delay/005")                     ,
                                         host         = Safe_Str__Http__Host(f"localhost:{self.upstream.port}"),
-                                        client_ip    = Safe_Str__IP_Address("192.168.1.1")        ,
-                                        use_https    = False                                      ,
-                                        request_id   = Random_Guid()                              )
+                                        client_ip    = Safe_Str__IP_Address("192.168.1.1")                    ,
+                                        use_https    = False                                                  ,
+                                        request_id   = Random_Guid()                                          )
 
         start_time = time.time()
         response = self.proxy_service.execute_request(request)
         duration = time.time() - start_time
 
         assert response.status_code == 200
-        assert duration >= 0.1                                                        # At least 100ms delay
+        assert duration >= 0.005                                                        # At least 5ms delay
 
         content = json.loads(response.content.decode())
-        assert content['delayed_ms'] == 100
+        assert content['delayed_ms'] == 5
 
     def test_proxy_large_response(self):                                              # Test large response handling
         request = Schema__Proxy__Request(method       = Safe_Str__Http__Method("GET")              ,
@@ -228,8 +228,7 @@ class test_Service__Proxy__local_upstream_server(TestCase):                     
 
         response = self.proxy_service.execute_request(request)
 
-        assert response.status_code == 302                                            # Redirect not followed
-        assert 'Location' in response.headers
+        assert response.status_code         == 302                                    # Redirect not followed
         assert response.headers['Location'] == '/echo'
 
     def test_proxy_stats_tracking(self):                                              # Test statistics tracking

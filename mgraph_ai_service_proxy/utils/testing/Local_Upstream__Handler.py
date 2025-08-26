@@ -1,7 +1,7 @@
 import json
 import time
 from http.server                                                        import BaseHTTPRequestHandler
-from urllib.parse                                                       import urlparse, parse_qs
+from urllib.parse                                                       import urlparse
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Path          import Safe_Str__Http__Path
 from mgraph_ai_service_proxy.schemas.http.Safe_Str__Http__Query_String  import Safe_Str__Http__Query_String
 
