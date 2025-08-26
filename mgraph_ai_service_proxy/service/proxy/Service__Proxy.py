@@ -1,5 +1,6 @@
 import requests
 import threading
+from urllib.parse                                                   import urlunparse
 from osbot_utils.type_safe.Type_Safe                                import Type_Safe
 from osbot_utils.type_safe.primitives.safe_str.web.Safe_Str__Url    import Safe_Str__Url
 from mgraph_ai_service_proxy.schemas.Schema__Proxy__Config          import Schema__Proxy__Config
@@ -38,19 +39,25 @@ class Service__Proxy(Type_Safe):                                                
             thread_local.session.timeout = (self.config.connect_timeout, self.config.read_timeout)
         return thread_local.session
     
-    def build_target_url(self, request: Schema__Proxy__Request) -> Safe_Str__Url:  # Construct target URL from request
-        if request.path.startswith('http://') or request.path.startswith('https://'):
+
+
+    def build_target_url(self, request: Schema__Proxy__Request) -> Safe_Str__Url:
+        if request.path.startswith('http://') or request.path.startswith('https://'):               # If path is already a full URL, just return it
             return Safe_Str__Url(request.path)
-            
+
         if not request.host:
             raise ValueError("No target host specified in request")
-            
-        protocol   = 'https' if request.use_https else 'http'
-        target_url = f"{protocol}://{request.host}{request.path}"
-        
-        if request.query_string:
-            target_url += f"?{request.query_string}"
-            
+
+        path   = str(request.path) if request.path.startswith('/') else f'/{request.path}'                 # Ensure path starts with /
+
+        scheme  = 'https' if request.use_https else 'http'                                           # Use urlunparse to build URL properly
+        netloc  = str(request.host)                                                                  # host:port if port is included
+        params  = ''                                                                                 # URL parameters (rarely used, different from query string)
+        query   = str(request.query_string) or ''
+        fragment = ''                                                                               # URL fragment/anchor
+
+        target_url = urlunparse((scheme, netloc, path, params, query, fragment))                    # urlunparse handles all the joining correctly
+
         return Safe_Str__Url(target_url)
     
     def execute_request(self, request: Schema__Proxy__Request) -> Schema__Proxy__Response:  # Execute proxied request
