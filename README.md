@@ -7,43 +7,48 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
 [![CI Pipeline - DEV](https://github.com/the-cyber-boardroom/MGraph-AI__Service__Proxy/actions/workflows/ci-pipeline__dev.yml/badge.svg)](https://github.com/the-cyber-boardroom/MGraph-AI__Service__Proxy/actions)
 
-A production-ready FastAPI microservice template for building MGraph-AI services. This template provides a complete scaffold with CI/CD pipeline, AWS Lambda deployment, and type-safe architecture.
+A serverless HTTP/HTTPS reverse proxy service built with FastAPI and deployable to AWS Lambda. This service provides a lightweight, type-safe proxy that can be deployed behind CloudFront for browser proxy configuration or API gateway functionality.
 
 ## 🎯 Purpose
 
-This repository serves as the base template for creating new MGraph-AI services. It includes:
-- ✅ Complete FastAPI application structure  
-- ✅ Multi-stage CI/CD pipeline (dev, qa, prod)
-- ✅ AWS Lambda deployment configuration
-- ✅ Type-safe architecture using OSBot-Utils
-- ✅ Comprehensive test coverage
-- ✅ API key authentication
-- ✅ Health check and monitoring endpoints
+MGraph-AI Service Proxy is a production-ready reverse proxy that:
+- ✅ Forwards HTTP/HTTPS requests through AWS Lambda
+- ✅ Works with browser proxy configurations (via CloudFront)
+- ✅ Provides request filtering and header management
+- ✅ Tracks proxy statistics and metrics
+- ✅ Implements Type-Safe architecture for runtime validation
+- ✅ Deploys as a serverless function with minimal cost
 
-**Note**: This is a template repository. To create your own service, see [Creating Services from Template](docs/dev/non-functional-requirements/version-1_0_0/README.md).
+## 🚀 Key Features
 
-## 📚 Creating a New Service
+- **Serverless Architecture**: Runs on AWS Lambda with CloudFront distribution
+- **Browser Proxy Support**: Configure browsers to route through `proxy.dev.mgraph.ai`
+- **Type-Safe Implementation**: Built with OSBot-Utils Type_Safe framework
+- **Synchronous Processing**: Avoids FastAPI async complexity issues
+- **Connection Pooling**: Thread-local session management for efficiency
+- **Header Filtering**: Security-focused header manipulation
+- **Statistics Tracking**: Monitor requests, errors, and timeouts
 
-To create a new service from this template, see [Creating Services from MGraph-AI__Service__Proxy](docs/dev/non-functional-requirements/version-1_0_0/README.md).
+## ⚠️ Limitations
 
-## 🚀 Features
-
-- **Type-Safe Architecture**: Built on OSBot-Utils type safety framework
-- **Multi-Stage Deployment**: Automated CI/CD pipeline for dev, QA, and production
-- **AWS Lambda Ready**: Optimized for serverless deployment
-- **API Key Authentication**: Secure access control
+Due to AWS Lambda constraints, this proxy has the following limitations:
+- **No HTTPS CONNECT tunneling** - Cannot handle true HTTPS proxy protocol
+- **6MB request payload limit** - Request size Lambda restrictions
+- **20MB response payload limit** - response size Lambda restrictions
+- **No WebSocket support** - Lambda doesn't support persistent connections
+- **Higher latency** - Cold starts and Lambda overhead
 
 ## 📋 Table of Contents
 
 - [Quick Start](#-quick-start)
 - [Installation](#-installation)
 - [API Documentation](#-api-documentation)
-- [Configuration](#-configuration)
+- [Browser Configuration](#-browser-configuration)
+- [Architecture](#-architecture)
 - [Development](#-development)
 - [Testing](#-testing)
 - [Deployment](#-deployment)
 - [Security](#-security)
-- [Contributing](#-contributing)
 - [License](#-license)
 
 ## 🎯 Quick Start
@@ -69,22 +74,16 @@ export FAST_API__AUTH__API_KEY__VALUE="your-secret-key"
 uvicorn mgraph_ai_service_proxy.fast_api.lambda_handler:app --reload --host 0.0.0.0 --port 10011
 ```
 
-### Basic Usage
+### Testing the Proxy
 
-```python
-import requests
+```bash
+# Test proxy functionality with curl
+curl -x http://localhost:10011 http://example.com
 
-# Set up authentication
-headers = {"x-api-key": "your-secret-key"}
-base_url = "http://localhost:10011"
-
-# Check service health
-response = requests.get(f"{base_url}/health", headers=headers)
-print(response.json())
-
-# Get service info
-response = requests.get(f"{base_url}/info/version", headers=headers)
-print(response.json())
+# Make a proxied request with authentication
+curl -H "x-api-key: your-secret-key" \
+     -x http://localhost:10011 \
+     https://api.example.com/data
 ```
 
 ## 📦 Installation
@@ -93,20 +92,8 @@ print(response.json())
 
 - Python 3.12+
 - AWS CLI (for deployment)
-- Docker (for LocalStack testing)
-
-### Using Poetry
-
-```bash
-# Install poetry if not already installed
-pip install poetry
-
-# Install dependencies
-poetry install
-
-# Activate virtual environment
-poetry shell
-```
+- AWS Account with Lambda access
+- Domain in Route53 (for production proxy)
 
 ### Using pip
 
@@ -116,7 +103,7 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements-test.txt
+pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -124,87 +111,122 @@ pip install -e .
 
 ### Interactive API Documentation
 
-Once the service is running, access the interactive API documentation at:
+Once running, access the interactive API docs at:
 - Swagger UI: http://localhost:10011/docs
 - ReDoc: http://localhost:10011/redoc
 
-### Endpoints Overview
-
-#### Health Endpoints
+### Proxy Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/{path:path}` | ANY | Proxy requests to target URL |
+| `/proxy/stats` | GET | Get proxy statistics |
 | `/health` | GET | Service health check |
-| `/health/detailed` | GET | Detailed health status |
+| `/info/status` | GET | Service status information |
 
-#### Information Endpoints
+### Making Proxy Requests
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/info/version` | GET | Get service version |
-| `/info/status` | GET | Get service status |
+```python
+import requests
 
-## ⚙️ Configuration
+# Direct proxy request (path contains full URL)
+response = requests.get(
+    "http://localhost:10011/http://example.com/api/data",
+    headers={"x-api-key": "your-secret-key"}
+)
 
-### Environment Variables
-
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `FAST_API__AUTH__API_KEY__NAME` | Header name for API key | Yes | - |
-| `FAST_API__AUTH__API_KEY__VALUE` | API key value | Yes | - |
-| `AWS_REGION` | AWS region (triggers Lambda mode) | No | - |
-| `DEBUG` | Enable debug logging | No | false |
-
-### Configuration File
-
-Create a `.env` file for local development:
-
-```env
-FAST_API__AUTH__API_KEY__NAME=x-api-key
-FAST_API__AUTH__API_KEY__VALUE=development-key-12345
+# With custom headers
+response = requests.post(
+    "http://localhost:10011/https://api.example.com/users",
+    headers={
+        "x-api-key": "your-secret-key",
+        "Content-Type": "application/json"
+    },
+    json={"name": "test"}
+)
 ```
 
-## 🛠️ Development
+## 🌐 Browser Configuration
 
-### Project Structure
+### Deploying for Browser Proxy Use
+
+1. **Deploy to Lambda** (see [Deployment](#-deployment))
+2. **Configure CloudFront** with your Lambda function URL as origin
+3. **Setup Route53** to point `proxy.dev.mgraph.ai` to CloudFront
+4. **Configure browser proxy settings**:
+
+#### Chrome/Edge
+- Settings → Advanced → System → "Open proxy settings"
+- HTTP Proxy: `proxy.dev.mgraph.ai`
+- HTTPS Proxy: `proxy.dev.mgraph.ai`
+- Port: `443`
+
+#### Firefox
+- Settings → Network Settings → Manual proxy configuration
+- HTTP/HTTPS Proxy: `proxy.dev.mgraph.ai`
+- Port: `443`
+
+## 🏗️ Architecture
+
+### Service Components
 
 ```
 mgraph_ai_service_proxy/
-├── fast_api/
-│   ├── lambda_handler.py      # AWS Lambda entry point
-│   ├── Service__Fast_API.py   # FastAPI application setup
-│   └── routes/               # API endpoint definitions
 ├── service/
-│   └── info/               # Service information
-├── utils/
-│   ├── deploy/             # Deployment utilities
-│   └── Version.py          # Version management
-└── config.py               # Service configuration
+│   └── proxy/
+│       ├── Service__Proxy.py           # Main proxy service
+│       ├── Service__Proxy__Stats.py    # Statistics tracking
+│       ├── Service__Proxy__Filter.py   # Header filtering
+│       └── schemas/
+│           ├── Schema__Proxy__Config.py    # Configuration
+│           ├── Schema__Proxy__Request.py   # Request model
+│           └── Schema__Proxy__Response.py  # Response model
+├── fast_api/
+│   └── routes/
+│       └── Routes__Proxy.py            # FastAPI endpoints
+└── config.py                            # Service configuration
 ```
 
-### Adding New Endpoints
+### Request Flow
 
-1. Create a new route class in `fast_api/routes/`:
-
-```python
-from osbot_fast_api.api.Fast_API_Routes import Fast_API_Routes
-
-class Routes__MyFeature(Fast_API_Routes):
-    tag = 'my-feature'
-    
-    def my_endpoint(self, param: str = "default"):
-        return {"result": param}
-    
-    def setup_routes(self):
-        self.add_route_get(self.my_endpoint)
+```
+Browser/Client → CloudFront → Lambda → Target Server
+       ↑                                    ↓
+       └────────── Response ←──────────────┘
 ```
 
-2. Register in `Service__Fast_API`:
+### Type-Safe Architecture
+
+All components use Type-Safe primitives:
+- `Safe_Str` for strings (sanitized)
+- `Safe_UInt` for counters (non-negative)
+- `Safe_Str__Url` for URLs (validated)
+- No raw primitives for security
+
+## 🛠️ Development
+
+### Adding Custom Filtering
 
 ```python
-def setup_routes(self):
-    # ... existing routes
-    self.add_routes(Routes__MyFeature)
+# In Service__Proxy__Filter.py
+class Service__Proxy__Filter(Type_Safe):
+    CUSTOM_HEADERS = {'X-Custom-Header'}
+    
+    def filter_custom_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
+        # Add custom filtering logic
+        return {k: v for k, v in headers.items() 
+                if k not in self.CUSTOM_HEADERS}
+```
+
+### Extending Statistics
+
+```python
+# In Service__Proxy__Stats.py
+class Service__Proxy__Stats(Type_Safe):
+    total_bytes: Safe_UInt  # Add new counter
+    
+    def record_bytes(self, size: int) -> None:
+        self.total_bytes = Safe_UInt(self.total_bytes + size)
 ```
 
 ## 🧪 Testing
@@ -218,98 +240,131 @@ pytest
 # Run with coverage
 pytest --cov=mgraph_ai_service_proxy
 
-# Run specific test file
-pytest tests/unit/fast_api/test_Service__Fast_API__client.py
+# Run specific test category
+pytest tests/unit/service/proxy/
 
-# Run integration tests (requires LocalStack)
+# Run integration tests
 pytest tests/integration/
 ```
 
-### Test Structure
+### Test Coverage Areas
 
-```
-tests/
-├── unit/                    # Unit tests
-│   ├── fast_api/           # API tests
-│   └── service/            # Service tests
-└── deploy_aws/             # Deployment tests
-```
+- **Type Safety**: Validates Safe type conversions
+- **Header Filtering**: Request/response header manipulation
+- **URL Building**: Various URL construction scenarios
+- **Error Handling**: Timeouts, connection errors
+- **Statistics**: Request counting and metrics
 
 ## 🚀 Deployment
 
-### AWS Lambda Deployment
-
-The service includes automated deployment scripts for multiple environments:
+### Deploy to AWS Lambda
 
 ```bash
-# Deploy to development
-pytest tests/deploy_aws/test_Deploy__Service__to__dev.py
+# Package for Lambda
+pip install -r requirements.txt -t package/
+cp -r mgraph_ai_service_proxy package/
+cd package && zip -r ../function.zip . && cd ..
 
-# Deploy to QA
-pytest tests/deploy_aws/test_Deploy__Service__to__qa.py
+# Deploy with AWS CLI
+aws lambda create-function \
+    --function-name mgraph-ai-proxy \
+    --runtime python3.12 \
+    --role arn:aws:iam::ACCOUNT:role/lambda-role \
+    --handler mgraph_ai_service_proxy.fast_api.lambda_handler.run \
+    --zip-file fileb://function.zip \
+    --timeout 30 \
+    --memory-size 512
 
-# Deploy to production (manual trigger)
-# Use GitHub Actions workflow
+# Create Function URL
+aws lambda create-function-url-config \
+    --function-name mgraph-ai-proxy \
+    --auth-type NONE
+```
+
+### CloudFront Configuration
+
+```json
+{
+  "Origins": [{
+    "DomainName": "YOUR-FUNCTION-URL.lambda-url.region.on.aws",
+    "CustomOriginConfig": {
+      "OriginProtocolPolicy": "https-only"
+    }
+  }],
+  "DefaultCacheBehavior": {
+    "AllowedMethods": ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+    "CachedMethods": ["GET", "HEAD"],
+    "ForwardedValues": {
+      "QueryString": true,
+      "Headers": ["*"]
+    },
+    "MinTTL": 0,
+    "DefaultTTL": 0,
+    "MaxTTL": 0
+  }
+}
 ```
 
 ### CI/CD Pipeline
 
-The project uses GitHub Actions for continuous deployment:
-
-1. **Development Branch** (`dev`)
-   - Runs tests with LocalStack
-   - Deploys to dev environment
-   - Increments minor version
-
-2. **Main Branch** (`main`)
-   - Runs comprehensive test suite
-   - Deploys to QA environment
-   - Increments major version
-
-3. **Production** (manual)
-   - Requires manual workflow trigger
-   - Deploys to production environment
+The service uses GitHub Actions for deployment:
+- **dev branch**: Auto-deploy to development
+- **main branch**: Auto-deploy to QA
+- **Production**: Manual trigger required
 
 ## 🔒 Security
 
-### Authentication
+### Security Features
 
-API key authentication is required for all endpoints:
-
-```python
-headers = {"x-api-key": "your-secret-key"}
-```
+- **Header Filtering**: Removes sensitive proxy headers
+- **Type Safety**: Runtime validation of all inputs
+- **API Key Authentication**: Optional access control
+- **No Raw Primitives**: Safe types prevent injection attacks
 
 ### Best Practices
 
-1. **Never commit secrets** - Use environment variables
-2. **Rotate API keys** - Regular key rotation
-3. **Use HTTPS** - Always encrypt in transit
-4. **Monitor access** - Log and audit API usage
+1. **Rotate API keys regularly**
+2. **Monitor CloudWatch logs for suspicious activity**
+3. **Use CloudFront WAF rules for additional protection**
+4. **Limit Lambda function permissions**
+5. **Enable VPC endpoint if proxying internal resources**
 
-## 🤝 Contributing
+## 📊 Monitoring
 
-We welcome contributions! Please follow these steps:
+### CloudWatch Metrics
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- Request count and latency
+- Error rates (timeouts, connection errors)
+- Lambda cold starts
+- Memory usage
 
-### Development Guidelines
+### Accessing Statistics
 
-- Write tests for new features
-- Update documentation
-- Follow existing code style
-- Add type annotations
-- Consider security implications
+```bash
+curl https://proxy.dev.mgraph.ai/proxy/stats \
+     -H "x-api-key: your-secret-key"
+```
 
-## 🔗 Related Projects
+Response:
+```json
+{
+  "total_requests": 1234,
+  "total_errors": 12,
+  "total_timeouts": 3
+}
+```
 
-- [OSBot-Utils](https://github.com/owasp-sbot/OSBot-Utils) - Core utilities library
-- [OSBot-AWS](https://github.com/owasp-sbot/OSBot-AWS) - AWS integration layer
-- [OSBot-Fast-API](https://github.com/owasp-sbot/OSBot-Fast-API) - FastAPI utilities
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `FAST_API__AUTH__API_KEY__NAME` | Header name for API key | No | - |
+| `FAST_API__AUTH__API_KEY__VALUE` | API key value | No | - |
+| `PROXY_VERIFY_SSL` | Verify SSL certificates | No | false |
+| `PROXY_MAX_TIMEOUT` | Maximum request timeout | No | 25 |
+| `PROXY_POOL_SIZE` | Connection pool size | No | 10 |
 
 ## 📄 License
 
@@ -318,6 +373,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## 🙏 Acknowledgments
 
 - Built with [FastAPI](https://fastapi.tiangolo.com/)
+- Type safety via [OSBot-Utils](https://github.com/owasp-sbot/OSBot-Utils)
 - Deployed on [AWS Lambda](https://aws.amazon.com/lambda/)
 
 ## 📞 Support

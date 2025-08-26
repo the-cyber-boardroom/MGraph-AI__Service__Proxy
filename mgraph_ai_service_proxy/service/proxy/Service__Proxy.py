@@ -20,18 +20,18 @@ class Service__Proxy(Type_Safe):                                                
         self.stats_service   = Service__Proxy__Stats()
         self.filter_service  = Service__Proxy__Filter()
         return self
-    
+
+    # todo: see if need this pooling since this is running inside lambda
     def get_session(self) -> requests.Session:                               # Get thread-local requests session for pooling
         if not hasattr(thread_local, "session"):
             thread_local.session = requests.Session()
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections = self.config.pool_connections      ,
-                pool_maxsize     = self.config.pool_max_size        ,
-                max_retries      = requests.adapters.Retry(
-                    total            = self.config.retry_count       ,
-                    backoff_factor   = self.config.retry_backoff    ,
-                    status_forcelist = [502, 503, 504]
-                )
+            adapter = requests.adapters.HTTPAdapter(pool_connections = self.config.pool_connections      ,
+                                                    pool_maxsize     = self.config.pool_max_size        ,
+                                                    max_retries      = requests.adapters.Retry(
+                                                        total            = self.config.retry_count       ,
+                                                        backoff_factor   = self.config.retry_backoff    ,
+                                                        status_forcelist = [502, 503, 504]
+                                                    )
             )
             thread_local.session.mount("http://" , adapter)
             thread_local.session.mount("https://", adapter)

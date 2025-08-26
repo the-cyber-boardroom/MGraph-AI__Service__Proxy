@@ -6,15 +6,14 @@ from osbot_utils.type_safe.primitives.safe_str.identifiers.Random_Guid  import R
 from mgraph_ai_service_proxy.schemas.Schema__Proxy__Request             import Schema__Proxy__Request
 from mgraph_ai_service_proxy.service.proxy.Service__Proxy               import Service__Proxy
 
-TAG__ROUTES_PROXY = 'proxy'
+TAG__ROUTES_PROXY = '/'
 
-ROUTES_PATHS__PROXY   = [ f'/{TAG__ROUTES_PROXY}/{{path:path}}'  ,
-                          f'/{TAG__ROUTES_PROXY}/proxy/stats'  ]
+ROUTES_PATHS__PROXY   = [ '/{path:path}'  ,
+                          '/proxy/stats'  ]
 
 class Routes__Proxy(Fast_API__Routes):                                         # FastAPI routes for proxy functionality
     tag            : str           = TAG__ROUTES_PROXY
     proxy_service  : Service__Proxy
-
 
     def proxy_request(self, request: Request                          ,       # Main proxy endpoint
                             path   : str                                       # Path parameter from URL
@@ -44,6 +43,16 @@ class Routes__Proxy(Fast_API__Routes):                                         #
 
     def proxy__stats(self) -> Dict[str, int]:                                  # Get proxy statistics
         return self.proxy_service.stats_service.get_stats()
+
+
+    # todo: remove when next version of the osbot-fast-api has been configured
+    def setup(self):
+        self.setup_routes()
+        if self.prefix == '/':
+            self.app.include_router(self.router, tags=[self.tag])
+        else:
+            self.app.include_router(self.router, prefix=self.prefix, tags=[self.tag])
+        return self
 
     def setup_routes(self):
         self.add_route_any(self.proxy_request, "/{path:path}")                # Catch-all route for proxy
